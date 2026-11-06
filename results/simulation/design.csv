@@ -1,0 +1,7 @@
+"scenario","delay","hr_after","censor_rate","tau","kind","matched_null"
+"S1",2,0.5,0.01,24,"alternative","null_1"
+"S2",8,0.5,0.01,24,"alternative","null_1"
+"S3",2,0.5,0.06,24,"alternative","null_2"
+"S4",8,0.5,0.06,24,"alternative","null_2"
+"null_1",2,1,0.01,24,"null","null_1"
+"null_2",2,1,0.06,24,"null","null_2"

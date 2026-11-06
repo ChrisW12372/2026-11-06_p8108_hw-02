@@ -1,0 +1,68 @@
+.header-section-number::after{
+  content: ". ";
+}
+
+pre.sourceCode {
+  background-color: #f5f5f5;
+  border: none;
+  border-radius: 0;
+  padding: 1em 1.5em;
+}
+
+pre.sourceCode code {
+  background-color: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* background */
+pre:has(> code.hljs) {
+  background-color: #f5f5f5 !important;
+  border: none;
+  border-radius: 0;
+  padding: 1em 1.5em;
+}
+
+/* common codes */
+pre > code.hljs {
+  color: #000000 !important;
+  background: transparent !important;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* annotations */
+.hljs .hljs-comment {
+  color: #60a0b0 !important;
+  font-style: italic;
+}
+
+/* strings */
+.hljs .hljs-string {
+  color: #4070a0 !important;
+}
+
+/* numbers */
+.hljs .hljs-number {
+  color: #40a070 !important;
+}
+
+/* keywords */
+/*.hljs .hljs-keyword {*/
+  /*color: #007020 !important;*/
+  /*font-weight: bold;*/
+/*}*/
+
+/* TRUE、FALSE、NULL et.al */
+.hljs .hljs-literal {
+  color: #007020 !important;
+}
+
+/* functions being highlighted by the system */
+.hljs .hljs-title,
+.hljs .hljs-built_in {
+  color: #06287e !important;
+}
+
+
