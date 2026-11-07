@@ -1,0 +1,3 @@
+"Patient","Hazard relative to baseline","Survival at day 365","Median survival"
+"Male, age 60, ECOG 1",1.53016388106794,0.344564260465366,"286 days"
+"Female, age 60, ECOG 1",0.796079178531868,0.57446210227793,"Not reached by day 365"

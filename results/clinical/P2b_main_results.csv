@@ -1,0 +1,6 @@
+"Result","Estimate","Lower_95_CI","Upper_95_CI","DF","P_value"
+"Patients",227,,,,
+"Deaths through day 365",120,,,,
+"Unadjusted logrank chi-square",9.9271517590871,,,1,0.00162858348539112
+"Adjusted female-to-male hazard ratio",0.520257462864869,0.3516155081793,0.769783531642662,,0.00107971904182586
+"Joint ECOG likelihood-ratio chi-square",17.943004992306,,,2,0.000126977265904834
