@@ -1,0 +1,566 @@
+---
+title: "2026-11-06_p8108_hw-02"
+author: "Chris"
+date: "2026-11-06"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    theme: cosmo
+    number_sections: TRUE
+    css: style.css
+---
+
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(survival)
+```
+
+
+
+# problem 1
+
+## question a
+
+```{r}
+source("hw2_tools-2.R")
+plan <- read.csv("design.csv", stringsAsFactors = FALSE)
+
+# sim <- run_plan(
+#   plan,
+#   B = 10000,
+#   seed = 81082026,
+#   output_dir = "results/simulation"
+# )
+
+load(".RData")
+```
+
+
+```{r}
+subset(
+  sim$summary, kind == "null",
+  select = c(scenario, method, reject_rate, MCSE, failures)
+)
+```
+
+
+
+```{r}
+subset(
+  sim$summary, kind == "alternative",
+  select = c(scenario, method, reject_rate)
+)
+```
+
+
+```{r}
+subset(
+  sim$paired, kind == "alternative",
+  select = c(scenario, difference, MCSE, lower, upper)
+)
+```
+
+
+I examined whether a longer treatment delay increases the power advantage of FH(0,1) over the ordinary logrank test and whether that advantage persists when loss to follow-up is more frequent. I varied the treatment delay $d$ and the monthly loss-to-follow-up rate $c$, keeping the post-delay hazard ratio $h=0.50$ and the follow-up limit $\tau=24$ months fixed.
+
+| Scenario | Delay $d$ (months) | Loss-to-follow-up rate $c$ (per month) | Post-delay hazard ratio $h$ | Follow-up limit $\tau$ (months) |
+|:---------|-------------------:|-------------------------------------:|----------------------------:|--------------------------------:|
+| S1       | 2                  | 0.01                                 | 0.50                        | 24                              |
+| S2       | 8                  | 0.01                                 | 0.50                        | 24                              |
+| S3       | 2                  | 0.06                                 | 0.50                        | 24                              |
+| S4       | 8                  | 0.06                                 | 0.50                        | 24                              |
+
+I chose delays of 2 and 8 months to compare early and late treatment onset within the same follow-up period. FH(0,1) gives more weight to later events, so it may have a larger advantage when the treatment takes longer to work. Higher loss to follow-up leaves fewer participants under observation at later times and may reduce that advantage. My primary comparison was S1 versus S2, which isolates the effect of a longer delay at the lower loss-to-follow-up rate. I also compared S3 with S4 to see whether the same pattern held at the higher rate.
+
+For each setting, I simulated $B=10{,}000$ datasets with 80 participants per group. I applied both two-sided tests at $\alpha=0.05$ to the same dataset in each replicate. I defined the power gain as
+
+$$
+\Delta = \mathrm{Power}_{\mathrm{FH}(0,1)}
+       - \mathrm{Power}_{\mathrm{logrank}}.
+$$
+
+Before examining the results, I set $\kappa=0.05$ as the minimum power gain that would favor FH(0,1), provided its false-positive rate was close to the nominal level. A gain of 5 percentage points means detecting a true treatment effect in about five additional trials out of 100 under the same conditions.
+
+To estimate Monte Carlo error, I used the paired rejection indicators. For replicate $b$, let $D_b=I(p_{\mathrm{FH},b}<0.05)-I(p_{\mathrm{LR},b}<0.05)$, where $I(\cdot)$ is an indicator. The estimated power gain is $\widehat{\Delta}=\bar D$, with Monte Carlo standard error
+
+$$
+\widehat{\mathrm{MCSE}}(\widehat{\Delta})
+= \frac{\mathrm{SD}(D_1,\ldots,D_B)}{\sqrt{B}}.
+$$
+
+Across the four settings, the Monte Carlo standard errors ranged from 0.36 to 0.44 percentage points, compared with the 5-percentage-point threshold.
+
+**No-effect check.** I repeated the simulations with $h=1$ under each loss-to-follow-up rate, keeping $\tau=24$ months. When $h=1$, the two groups have the same hazard throughout follow-up, so the value of $d$ does not affect the event-time distribution. The logrank test rejected in 5.18% and 5.33% of replicates at the lower and higher loss-to-follow-up rates, respectively. The corresponding rates for FH(0,1) were 5.53% and 5.71%. There were no computational failures. FH(0,1) was slightly above the nominal 5% level in both settings, which warrants caution when its estimated power gain is close to the decision threshold.
+
+**Power comparison.** At the lower loss-to-follow-up rate, increasing the delay from 2 to 8 months reduced power for both tests, while the FH(0,1) advantage increased from 2.60 to 21.01 percentage points. At the higher rate, the advantage increased from 5.90 to 11.51 percentage points. The estimated gains in S2 and S4 clearly exceeded the prespecified threshold, and the gain in S1 fell below it. S3 was borderline. Its estimated gain was 5.90 percentage points, and the lower bound of its 95% Monte Carlo interval was 5.03 percentage points, just above the threshold.
+
+
+## question b
+
+
+I ran 10,000 replicates for each of the four treatment-benefit settings and the two matched no-effect settings. S1 and S2 shared a no-effect setting with $c=0.01$ and $\tau=24$ months. S3 and S4 shared a no-effect setting with $c=0.06$ and the same follow-up limit. In both no-effect settings, I set $h=1$. I applied both tests to each simulated dataset and used the same two-sided rejection rule, $p<0.05$.
+
+### Rejection rates and simulation summaries
+
+For each scenario and test, I estimated the rejection rate $\widehat p$ as the proportion of valid results with $p<0.05$. This estimates power in the treatment-benefit settings and Type I error in the no-effect settings. For $N$ valid results, the Monte Carlo standard error was
+
+$$
+\widehat{\mathrm{MCSE}}(\widehat p)
+= \sqrt{\frac{\widehat p(1-\widehat p)}{N}}.
+$$
+
+The mean event count and mean percentage censored are calculated across all generated datasets in each scenario. They are the same for both tests because the tests use the same datasets.
+
+```{r problem-1b-summary}
+b_summary <- sim$summary
+b_summary <- b_summary[order(
+  match(b_summary$scenario, sim$design$scenario),
+  match(b_summary$method, c("LR", "FH01"))
+), ]
+
+b_table <- data.frame(
+  Scenario = b_summary$scenario,
+  Setting = ifelse(b_summary$kind == "null", "No effect", "Benefit"),
+  Test = ifelse(b_summary$method == "LR", "Logrank", "FH(0,1)"),
+  Valid = b_summary$valid,
+  Failed = b_summary$failures,
+  `Mean events` = b_summary$mean_events,
+  `Mean censored (%)` = 100 * b_summary$mean_censor_fraction,
+  `Rejection rate (%)` = 100 * b_summary$reject_rate,
+  `MCSE (pp)` = 100 * b_summary$MCSE,
+  check.names = FALSE
+)
+
+knitr::kable(
+  b_table,
+  digits = 2,
+  caption = "Simulation results by scenario and test. MCSE is in percentage points."
+)
+```
+
+```{r problem-1b-failures, echo=FALSE, results='asis'}
+b_failures <- sum(b_summary$failures)
+
+if (b_failures == 0) {
+  cat("There were no failed tests. All generated datasets contributed to both the individual rejection rates and the paired comparisons.")
+} else {
+  cat(sprintf(
+    paste0(
+      "There were %d failed tests across all scenarios and methods. ",
+      "Failed tests were retained in the replicate-level results, and no replacement datasets were generated. ",
+      "Each rejection rate uses the valid results for that test. ",
+      "Each paired comparison uses only datasets with two valid results. ",
+      "If failures were related to the outcomes of the tests, the reported rates and differences may not represent all simulated datasets."
+    ),
+    b_failures
+  ))
+}
+```
+
+Under no effect, the logrank rejection rates were 5.18% at $c=0.01$ and 5.33% at $c=0.06$. The corresponding FH(0,1) rates were 5.53% and 5.71%. FH(0,1) was slightly above the nominal 5% level at both censoring rates.
+
+### Paired power differences
+
+For each dataset with two valid results, I coded rejection as $R=1$ if $p<0.05$ and $R=0$ otherwise. I then calculated $D_i=R_{\mathrm{FH},i}-R_{\mathrm{LR},i}$. With $N_{\mathrm{pair}}$ valid pairs and sample standard deviation $s_D$, the estimated power difference and its Monte Carlo standard error were
+
+$$
+\widehat{\Delta}=\frac{1}{N_{\mathrm{pair}}}
+\sum_{i=1}^{N_{\mathrm{pair}}}D_i,
+\qquad
+\widehat{\mathrm{MCSE}}(\widehat{\Delta})
+=\frac{s_D}{\sqrt{N_{\mathrm{pair}}}}.
+$$
+
+The plot shows $\widehat{\Delta}$ and the approximate 95% Monte Carlo interval $\widehat{\Delta}\pm 1.96\,\widehat{\mathrm{MCSE}}(\widehat{\Delta})$ for each treatment-benefit setting.
+
+```{r problem-1b-power-difference, fig.width=6.5, fig.height=4}
+b_paired <- subset(sim$paired, kind == "alternative")
+b_paired$scenario <- factor(
+  b_paired$scenario,
+  levels = sim$design$scenario[sim$design$kind == "alternative"]
+)
+
+ggplot2::ggplot(
+  b_paired,
+  ggplot2::aes(x = scenario, y = 100 * difference)
+) +
+  ggplot2::geom_hline(yintercept = 0, colour = "grey60") +
+  ggplot2::geom_hline(yintercept = 5, linetype = "dashed") +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(ymin = 100 * lower, ymax = 100 * upper),
+    width = 0.15,
+    colour = "#1F5A83"
+  ) +
+  ggplot2::geom_point(size = 2.8, colour = "#1F5A83") +
+  ggplot2::labs(
+    x = "Scenario",
+    y = "FH(0,1) minus logrank power (percentage points)",
+    caption = "The dashed line marks the prespecified 5-percentage-point threshold."
+  ) +
+  ggplot2::theme_minimal(base_size = 11)
+```
+
+At the lower loss-to-follow-up rate, the power advantage of FH(0,1) increased from 2.60 percentage points in S1 to 21.01 in S2 as the treatment delay increased from 2 to 8 months. At the higher rate, the advantage increased from 5.90 percentage points in S3 to 11.51 in S4. Both tests had lower power with the longer delay at either loss-to-follow-up rate.
+
+The gains in S2 and S4 clearly exceeded the prespecified threshold, while the gain in S1 fell below it. S3 was borderline. Its gain was 5.90 percentage points, with a 95% Monte Carlo interval of 5.03 to 6.77 percentage points. Given the slightly elevated no-effect rejection rate of FH(0,1), I would interpret this threshold crossing cautiously. These intervals quantify simulation error for the settings studied. They do not account for uncertainty about the treatment delay or hazard ratio in a future trial.
+
+The replicate-level results are included in `results/simulation/replicates.csv`, with one row per scenario, replicate, and test.
+
+
+## question c
+
+I would favor FH(0,1) in the two settings with an 8-month delay, S2 and S4. At the nominal 5% significance level, its estimated power gains over logrank were 21.01 and 11.51 percentage points, respectively. The corresponding 95% Monte Carlo intervals were 20.14 to 21.88 and 10.76 to 12.26 percentage points. Both intervals are well above my prespecified threshold of $\kappa=5$ percentage points.
+
+For the 2-month delay, the gain was only 2.60 percentage points in S1, with a Monte Carlo interval of 1.89 to 3.31. In S3, the gain was 5.90 percentage points, with an interval of 5.03 to 6.77. S3 just cleared the threshold. In the matched no-effect simulations, FH(0,1) rejected 5.53% and 5.71% of the time, compared with 5.18% and 5.33% for logrank. Thus, the power comparisons are at a common nominal level, with a slightly higher observed false-positive rate for FH(0,1). I would treat the result in S3 as borderline, since its interval barely clears the threshold and its matched no-effect setting had the highest FH(0,1) rejection rate.
+
+### Why the relative power changed
+
+```{r problem-1c-event-counts, echo=FALSE}
+c_counts <- subset(sim$summary, kind == "alternative" & method == "LR")
+rownames(c_counts) <- c_counts$scenario
+c_counts <- c_counts[c("S1", "S2", "S3", "S4"), ]
+
+knitr::kable(
+  data.frame(
+    Scenario = c_counts$scenario,
+    `At risk at enrollment` = 160L,
+    `Mean at risk at onset` = c_counts$mean_at_risk_at_delay,
+    `Mean events before onset` = c_counts$mean_events_before_delay,
+    `Mean events after onset` = c_counts$mean_events_after_delay,
+    check.names = FALSE
+  ),
+  digits = 1,
+  caption = "Mean counts across simulated datasets. The risk set includes both groups."
+)
+```
+
+The ordinary logrank test gives every event time weight 1. FH(0,1) uses $1-\widehat S_{\mathrm{pool}}(t^-)$, so early events generally receive less weight. Before treatment onset, the hazards are equal, and differences in observed event counts between groups during that period arise from chance. Downweighting those events can make it easier to detect the difference that begins after onset.
+
+At the lower loss-to-follow-up rate, delaying onset from 2 to 8 months increased the mean number of events before onset from `r round(c_counts["S1", "mean_events_before_delay"], 1)` in S1 to `r round(c_counts["S2", "mean_events_before_delay"], 1)` in S2. It also reduced the mean number of events after onset from `r round(c_counts["S1", "mean_events_after_delay"], 1)` to `r round(c_counts["S2", "mean_events_after_delay"], 1)`. The shorter period with a treatment effect helps explain why both tests lost power. At the same time, logrank gave full weight to the larger number of events that occurred before any benefit was present, which helps explain why FH(0,1) gained a larger advantage in S2. The advantage also increased with delay at the higher loss-to-follow-up rate, from 5.90 percentage points in S3 to 11.51 in S4.
+
+Comparing S2 and S4 holds the 8-month delay fixed. Higher loss to follow-up reduced the mean number at risk when treatment began from `r round(c_counts["S2", "mean_at_risk_at_delay"], 1)` to `r round(c_counts["S4", "mean_at_risk_at_delay"], 1)` and the mean number of events after onset from `r round(c_counts["S2", "mean_events_after_delay"], 1)` to `r round(c_counts["S4", "mean_events_after_delay"], 1)`. FH(0,1) still had a meaningful advantage in S4, but there were fewer post-onset events for either test to use. Its absolute power was only 24.93% in S4, compared with 51.39% in S2.
+
+### Setting that most limits the recommendation
+
+S1 provides the strongest reason to limit the recommendation. When treatment began after only 2 months and loss to follow-up was low, ordinary logrank already had 77.99% power. FH(0,1) improved it by just 2.60 percentage points, and the entire Monte Carlo interval was below my 5-point threshold. I would therefore retain logrank in S1. This setting rules out a blanket recommendation to switch to FH(0,1) whenever a treatment benefit is delayed. My recommendation is strongest for the two 8-month-delay settings studied here.
+
+## question d
+
+
+I would choose FH(0,1) if prior evidence suggested that treatment would begin to work around month 8 and follow-up would last 24 months. In the simulations, the hazard ratio was 1 before onset and 0.50 afterward. With independent loss to follow-up, FH(0,1) gained 21.01 percentage points at the lower censoring rate and 11.51 at the higher rate. Both 95% Monte Carlo intervals were entirely above my five-point threshold.
+
+I would choose ordinary logrank if benefit were expected around month 2 and loss to follow-up were low. In that setting, logrank had 77.99% power, and FH(0,1) added only 2.60 percentage points. With early benefit and higher loss to follow-up, I would want more evidence. The estimated gain was 5.90 points, but the interval barely cleared the threshold, and FH(0,1) rejected 5.71% of the time under no effect.
+
+One limitation is that I simulated only one post-onset hazard ratio. I would repeat the eight-month-delay, high-censoring scenario with a hazard ratio of 0.75. A gain below five points would weaken my recommendation to use FH(0,1) when the expected treatment effect is smaller.
+
+
+# problem 2
+
+## question a
+
+```{r problem-2a-cox}
+lung_raw <- read.csv("data/hw2_lung-2.csv", na.strings = c("", "NA"))
+
+# Define one complete-case sample for both analyses.
+required <- c("time", "status", "age", "female", "ecog")
+lung_cc <- lung_raw[complete.cases(lung_raw[required]), , drop = FALSE]
+
+lung_cc$age10 <- (lung_cc$age - 60) / 10
+lung_cc$ecog_group <- factor(
+  ifelse(lung_cc$ecog >= 2, "2plus", as.character(lung_cc$ecog)),
+  levels = c("0", "1", "2plus")
+)
+
+# Keep all patients and administratively censor follow-up beyond tau.
+apply_cutoff <- function(dat, tau) {
+  dat$time_tau <- pmin(dat$time, tau)
+  dat$death_tau <- as.integer(dat$status == 1 & dat$time <= tau)
+  dat
+}
+
+lung_365 <- apply_cutoff(lung_cc, 365)
+lung_730 <- apply_cutoff(lung_cc, 730)
+
+cox_formula <- Surv(time_tau, death_tau) ~ female + age10 + ecog_group
+
+fit_365 <- coxph(cox_formula, data = lung_365, ties = "efron",
+                 na.action = na.fail)
+fit_730 <- coxph(cox_formula, data = lung_730, ties = "efron",
+                 na.action = na.fail)
+
+summary(fit_365)
+summary(fit_730)
+```
+
+
+I analyzed patients with advanced lung cancer in the supplied NCCTG cohort. The event of interest was death, and time zero was the start of recorded follow-up. This date can differ from the date of diagnosis or treatment initiation. I estimated the hazard ratio for female versus male patients, as recorded in the data, adjusting for age and ECOG performance status.
+
+I chose 365 days as the primary cutoff to focus on the association during the first year of recorded follow-up. This gives a clear clinical time window but excludes information from later deaths. As a sensitivity analysis, I extended follow-up to 730 days while using the same patients and Cox model. This allowed 38 additional deaths to contribute to the analysis.
+
+Both models included the same 227 patients. I excluded one patient with missing ECOG. I modeled age continuously as $(\mathrm{age}-60)/10$, so its hazard ratio is for a 10-year age difference. I treated ECOG as categorical, with levels 0, 1, and 2plus, using 0 as the reference. I used the Efron method for tied event times. Patients whose recorded follow-up extended beyond the cutoff were censored at that day. I retained deaths observed on or before the cutoff and kept earlier censoring times as recorded.
+
+The Cox models assume that the hazard ratios for sex, age, and ECOG are constant within each analysis window. For censoring before the administrative cutoff, I assumed that the underlying death time and censoring time were independent conditional on recorded sex, age, and ECOG.
+
+In the 365-day analysis, 120 deaths were observed. The adjusted hazard ratio for female versus male patients was 0.520 (95% CI 0.352 to 0.770, $p=0.00108$). Among patients of the same age and ECOG category who were still alive at a given time, the estimated hazard of death was about 48% lower for female patients during the first year. In the 730-day analysis, 158 deaths were observed, and the adjusted hazard ratio was 0.549 (95% CI 0.392 to 0.769, $p=0.000485$).
+
+The two estimates were similar, suggesting that the conclusion of a lower adjusted hazard among female patients was insensitive to the choice between these two cutoffs. The models use overlapping follow-up periods. Assessing whether the association changes over time would require estimating how the hazard ratio varies over follow-up.
+
+
+## question b
+
+### Kaplan–Meier curves and unadjusted comparison
+
+The 365-day analysis included 227 patients and 120 deaths. There were 84 deaths among 137 male patients and 36 deaths among 90 female patients.
+
+```{r problem-2b-km, fig.width=7, fig.height=6}
+lung_365$sex <- factor(
+  lung_365$female,
+  levels = c(0, 1),
+  labels = c("Male", "Female")
+)
+
+km_sex <- survfit(Surv(time_tau, death_tau) ~ sex, data = lung_365)
+
+km_plot <- survminer::ggsurvplot(
+  km_sex,
+  data = lung_365,
+  censor = TRUE,
+  risk.table = TRUE,
+  risk.table.height = 0.25,
+  xlim = c(0, 365),
+  break.time.by = 90,
+  xlab = "Days since start of recorded follow-up",
+  ylab = "Estimated survival probability",
+  legend.title = "Recorded sex",
+  legend.labs = c("Male", "Female")
+)
+
+print(km_plot)
+```
+
+```{r problem-2b-logrank}
+survdiff(
+  Surv(time_tau, death_tau) ~ sex,
+  data = lung_365,
+  rho = 0
+)
+```
+
+The unadjusted logrank test gave $\chi^2(1)=9.93$ and $p=0.00163$, indicating a difference in survival by recorded sex over the first 365 days.
+
+#### Adjusted Cox model and joint test of ECOG
+
+After adjusting for age and ECOG, the female-to-male hazard ratio was 0.520 (95% CI 0.352 to 0.770). Under the fitted model, female patients had an estimated 48% lower hazard of death than male patients of the same age and ECOG category.
+
+To test ECOG jointly, I compared the main model with a reduced model containing recorded sex and age. The null hypothesis was $H_0\colon \beta_{\mathrm{ECOG\,1}}=\beta_{\mathrm{ECOG\,2plus}}=0$. Under this hypothesis, both ECOG categories have the same hazard as ECOG 0 after adjustment for sex and age.
+
+```{r problem-2b-ecog}
+fit_no_ecog <- coxph(
+  Surv(time_tau, death_tau) ~ female + age10,
+  data = lung_365,
+  ties = "efron",
+  na.action = na.fail
+)
+
+anova(fit_no_ecog, fit_365, test = "Chisq")
+```
+
+The likelihood-ratio test gave $\chi^2(2)=17.94$ and $p=0.000127$. The result indicates that ECOG contributes to the model after adjustment for sex and age.
+
+### Predicted survival for two example patients
+
+I compared a male patient and a female patient, both aged 60 with ECOG 1. Among patients with ECOG 1, there were 71 male patients aged 40 to 80 and 42 female patients aged 41 to 72. Each group included one patient aged exactly 60. I chose day 365 because it gives a one-year survival estimate within the main analysis window.
+
+The baseline patient in the Cox model is a male patient aged 60 with ECOG 0. All of his coded predictors are zero. I estimated his baseline survival $\widehat S_0(t)$ using the Breslow method. For a patient with predictors $\mathbf{x}$, I calculated survival by raising baseline survival to that patient's hazard relative to the baseline patient.
+
+$$
+\widehat S(t\mid\mathbf{x})
+=
+\widehat S_0(t)^{\exp(\mathbf{x}^{\mathsf T}\widehat{\boldsymbol\beta})}.
+$$
+
+```{r problem-2b-predictions}
+# Verify that age 60 and ECOG 1 are represented in both groups.
+with(
+  subset(lung_365, ecog_group == "1"),
+  tapply(age, sex, function(x) {
+    c(n = length(x), min_age = min(x), max_age = max(x),
+      n_age_60 = sum(x == 60))
+  })
+)
+
+ecog_levels <- levels(lung_365$ecog_group)
+
+baseline <- data.frame(
+  female = 0,
+  age10 = 0,
+  ecog_group = factor("0", levels = ecog_levels)
+)
+
+profiles <- data.frame(
+  female = c(0, 1),
+  age10 = c(0, 0),
+  ecog_group = factor(c("1", "1"), levels = ecog_levels)
+)
+
+baseline_fit <- survfit(
+  fit_365,
+  newdata = baseline,
+  stype = 2,
+  ctype = 1
+)
+
+s0_365 <- summary(baseline_fit, times = 365)$surv
+relative_hazard <- exp(
+  predict(fit_365, newdata = profiles, type = "lp", reference = "zero")
+)
+
+# Apply the same formula at every fitted time to find the medians.
+profile_survival <- outer(baseline_fit$surv, relative_hazard, "^")
+
+median_days <- vapply(seq_len(nrow(profiles)), function(j) {
+  crossing <- which(
+    baseline_fit$time <= 365 & profile_survival[, j] <= 0.5
+  )
+  if (length(crossing) == 0) return(NA_real_)
+  baseline_fit$time[crossing[1]]
+}, numeric(1))
+
+prediction_table <- data.frame(
+  Patient = c("Male, age 60, ECOG 1", "Female, age 60, ECOG 1"),
+  `Hazard relative to baseline` = relative_hazard,
+  `Survival at day 365` = s0_365^relative_hazard,
+  `Median survival` = ifelse(
+    is.na(median_days),
+    "Not reached by day 365",
+    paste(median_days, "days")
+  ),
+  check.names = FALSE
+)
+
+knitr::kable(prediction_table, digits = 3)
+```
+
+The estimated baseline survival at day 365 was 0.4984. The relative hazards for the male and female example patients were 1.5302 and 0.7961, respectively. Raising 0.4984 to these powers gave one-year survival estimates of 34.5% for the male patient and 57.4% for the female patient. The fitted median survival was 286 days for the male patient. The female patient's fitted curve stayed above 0.50 through day 365, so her median survival was not reached within the analysis window.
+
+
+## question c
+
+I changed the administrative follow-up limit from 365 to 730 days. Both models used the same 227 patients, the same coding for sex, age, and ECOG, and the Efron method for tied event times. For both models, I predicted survival at day 365 for the same two example patients, one male and one female, both aged 60 with ECOG 1. I used the Breslow estimate of baseline survival in both analyses.
+
+```{r problem-2c-comparison}
+summarize_followup <- function(fit, cutoff) {
+  hr <- summary(fit)$conf.int["female", ]
+
+  fitted_curves <- survfit(
+    fit,
+    newdata = profiles,
+    stype = 2,
+    ctype = 1
+  )
+  survival_365 <- as.numeric(summary(fitted_curves, times = 365)$surv)
+
+  data.frame(
+    `Follow-up limit` = paste(cutoff, "days"),
+    Patients = fit$n,
+    Deaths = fit$nevent,
+    `Female-to-male HR (95% CI)` = sprintf(
+      "%.3f (%.3f to %.3f)",
+      hr[["exp(coef)"]], hr[["lower .95"]], hr[["upper .95"]]
+    ),
+    `Male survival at day 365` = sprintf("%.1f%%", 100 * survival_365[1]),
+    `Female survival at day 365` = sprintf("%.1f%%", 100 * survival_365[2]),
+    check.names = FALSE
+  )
+}
+
+comparison_table <- rbind(
+  summarize_followup(fit_365, 365),
+  summarize_followup(fit_730, 730)
+)
+
+knitr::kable(comparison_table)
+```
+
+
+```{r export-clinical-results, include=FALSE}
+dir.create("results/clinical", recursive = TRUE, showWarnings = FALSE)
+
+logrank_365 <- survdiff(
+  Surv(time_tau, death_tau) ~ sex,
+  data = lung_365,
+  rho = 0
+)
+
+ecog_lr <- 2 * (as.numeric(logLik(fit_365)) -
+                 as.numeric(logLik(fit_no_ecog)))
+female_ci <- summary(fit_365)$conf.int["female", ]
+
+main_results <- data.frame(
+  Result = c(
+    "Patients",
+    "Deaths through day 365",
+    "Unadjusted logrank chi-square",
+    "Adjusted female-to-male hazard ratio",
+    "Joint ECOG likelihood-ratio chi-square"
+  ),
+  Estimate = c(fit_365$n, fit_365$nevent, logrank_365$chisq,
+               female_ci[["exp(coef)"]], ecog_lr),
+  Lower_95_CI = c(NA, NA, NA, female_ci[["lower .95"]], NA),
+  Upper_95_CI = c(NA, NA, NA, female_ci[["upper .95"]], NA),
+  DF = c(NA, NA, 1, NA, 2),
+  P_value = c(
+    NA, NA,
+    pchisq(logrank_365$chisq, df = 1, lower.tail = FALSE),
+    summary(fit_365)$coefficients["female", "Pr(>|z|)"],
+    pchisq(ecog_lr, df = 2, lower.tail = FALSE)
+  )
+)
+
+write.csv(main_results, "results/clinical/P2b_main_results.csv",
+          row.names = FALSE, na = "")
+write.csv(prediction_table, "results/clinical/P2b_patient_predictions.csv",
+          row.names = FALSE)
+write.csv(comparison_table, "results/clinical/P2c_followup_comparison.csv",
+          row.names = FALSE)
+```
+
+
+
+Extending follow-up added 38 observed deaths, from 120 to 158. The adjusted female-to-male HR moved from 0.520 to 0.549, an increase of about 0.03 toward 1. The 730-day estimate was somewhat more precise, but both confidence intervals still allow a substantial range of plausible effect sizes. Both intervals lie below 1. Each HR summarizes the association over its own follow-up window. The 730-day HR uses information from both years, so the small change between estimates is difficult to attribute specifically to the second year.
+
+The day-365 survival estimates decreased by about 0.3 percentage points for the male example patient and 2.0 points for the female example patient. The estimated female-minus-male survival difference decreased from 23.0 to 21.3 percentage points. The prediction time stayed fixed, but later deaths can change the fitted Cox coefficients and, through those coefficients, the estimated baseline survival at day 365. I would keep the 365-day analysis as the primary result for a one-year clinical question. The 730-day comparison supports the same conclusion that female patients had lower adjusted mortality in this cohort.
+
+### Alternative explanation and model assumptions
+
+The unadjusted logrank test ($p=0.00163$) compares the survival experience of the two observed sex groups. One plausible explanation for part of that difference is that the groups had different prognostic profiles. For example, the median age was 64 among male patients and 61 among female patients. As discussed in Chapter 3, an unadjusted survival comparison can reflect group differences in other prognostic factors. The Cox model instead compares the hazards of female and male patients of the same age and ECOG category. The association persisted after that adjustment, although other prognostic differences, such as differences in treatment or disease severity beyond ECOG, could still contribute. I interpret the results as an association in this cohort.
+
+Under the Cox proportional hazards model in Chapter 4, the female-to-male hazard ratio at fixed age and ECOG is assumed constant within each fitted window. If that ratio varies with time, each fitted HR gives a single summary over its window. The two estimates use overlapping follow-up, so their similarity provides a sensitivity check on the cutoff choice rather than a check of proportional hazards. The analysis also assumes that censoring before the administrative cutoff is independent of the underlying death time conditional on sex, age, and ECOG.
+
+
+## question d 
+
+
+For patients similar to those in the NCCTG cohort, I would use the 365-day model to discuss one-year prognosis. After adjustment for age and ECOG, female patients had a lower estimated hazard of death than male patients (HR 0.52, 95% CI 0.35 to 0.77). The interval supports a lower hazard, with uncertainty about the size of the association. A hazard ratio compares instantaneous death rates among patients still alive at a given time. A risk ratio compares probabilities of death by a specified time.
+
+For two 60-year-old patients with ECOG 1, predicted survival at day 365 was 34.5% for the male patient and 57.4% for the female patient. The male patient's fitted survival curve first reached 50% at day 286. The female patient's curve stayed above 50% through day 365, so her fitted median survival was not reached within the primary follow-up window.
+
+Extending the analysis to 730 days led to the same clinical message. The adjusted HR was 0.55, and the predicted one-year survival probabilities were similar at 34.1% and 55.4%, respectively.
+
+The supplied data lack treatment information, so differences in treatment could contribute to the observed association. Before using these estimates in another patient population, I would want to know how its treatments and patient characteristics compare with those of this cohort and check whether the model's one-year predictions agree with local outcomes.
+
+
+
+AI usage: I used ChatGPT 6.1 to help me with: understanding the simulation codes used in Preblem 1; helping me with creating clear tables; helping me with latex codes.  
+
+
+
+
+
+
+
+
+
+

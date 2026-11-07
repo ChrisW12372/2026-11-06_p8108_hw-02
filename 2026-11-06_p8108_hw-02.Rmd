@@ -2,13 +2,7 @@
 title: "2026-11-06_p8108_hw-02"
 author: "Chris"
 date: "2026-11-06"
-output: 
-  html_document:
-    toc: TRUE
-    toc_float: TRUE
-    theme: cosmo
-    number_sections: TRUE
-    css: style.css
+output: pdf_document
 ---
 
 
